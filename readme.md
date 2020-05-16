@@ -19,7 +19,7 @@ sh -c "
 echo
 rm -fv tmp.qcow2
 echo
-qemu-img create -f qcow2 tmp.qcow2 1T
+qemu-img create -f qcow2 tmp.qcow2 8G
 echo
 qemu-img  info tmp.qcow2
 echo
@@ -39,6 +39,65 @@ alias disconn='echo -ne "\n  Umounted? "; read -r; echo; sudo qemu-nbd -v -d /de
 alias conn='disconn; sudo qemu-nbd -v --discard=unmap --detect-zeroes=unmap -c /dev/nbd0 tmp.qcow2 &'
 ```
 
+FAT32 w/ deleted garbage
+
+```bash
+conn
+
+echo -e "o\nn\n\n\n\n\nt\nb\nw\n\n\n\n" | fdisk /dev/nbd0
+sync;partprobe;sleep 3
+mkfs.fat -v /dev/nbd0p1
+sync;partprobe;sleep 3
+ls -lh
+mount -v /dev/nbd0p1 /mnt
+dd if=/dev/urandom of=/mnt/garbage count=$((2*1024*(1024+32))) status=progress
+sync
+rm -v /mnt/garbage
+umount -v /mnt
+
+disconn
+```
+
+FAT32 GC (by creating and deleting a large zero file?)
+
+```bash
+
+conn
+mount -o discard /dev/nbd0p1 /mnt
+pushd /mnt
+
+
+function zerofill {
+  while true; do
+    F="zerofill_$i"
+    echo "$F"
+    # touch "$F"; fallocate -z -l $((1024*1024*1024*4-1)) -v "$F"
+    truncate -s "$1" "$F"
+    X="$?"
+    [ "$X" -eq 0 ] || break;
+    i=$((i+1))
+  done
+}
+
+i=0
+echo
+SZ="$((1024*1024*1024*4-1))"
+while [ "$SZ" -gt "$((1024*1024-1))" ]; do
+  echo "$SZ"
+  zerofill "$SZ"
+  echo
+  SZ="$((SZ/2))"
+done
+
+rm -v zerofill_*
+
+popd
+disconn
+
+qemu-img convert -O qcow2 tmp.qcow2 shrunk.qcow2
+
+```
+
 EXT4 w/ deleted garbage
 
 ```bash
@@ -52,7 +111,7 @@ mount -v /dev/nbd0p1 /mnt
 dd if=/dev/urandom of=/mnt/garbage count=$((2*1024*1024)) status=progress
 sync
 rm -v /mnt/garbage
-umount /mnt
+umount -v /mnt
 
 disconn
 ```
@@ -71,54 +130,6 @@ qemu-img convert -O qcow2 tmp.qcow2 shrunk.qcow2
 ls -lh *.qcow2
 # -rw-r--r-- 1 root root  81M May 16 21:20 shrunk.qcow2
 # -rw-r--r-- 1 root root 2.2G May 16 21:20 tmp.qcow2
-```
-
-FAT32 w/ deleted garbage
-
-```bash
-conn
-
-echo -e "o\nn\n\n\n\n\nt\nb\nw\n\n\n\n" | fdisk /dev/nbd0
-sync;partprobe;sleep 3
-mkfs.fat -v /dev/nbd0p1
-sync;partprobe;sleep 3
-ls -lh
-mount -v /dev/nbd0p1 /mnt
-dd if=/dev/urandom of=/mnt/garbage count=$((2*1024*1024)) status=progress
-sync
-rm -v /mnt/garbage
-umount /mnt
-
-disconn
-```
-
-FAT32 GC (by creating and deleting a large zero file?)
-
-```bash
-
-conn
-mount -o discard /dev/nbd0p1 /mnt
-pushd /mnt
-
-i=0
-SZ="$((1024*1024*1024*4-1))"
-while true; do
-  F="zerofill_$i"
-  echo "$F"
-  # touch "$F"; fallocate -z -l $((1024*1024*1024*4-1)) -v "$F"
-  truncate -s "$SZ" "$F"
-  X="$?"
-  [ "$X" -eq 0 ] || break;
-  i=$((i+1))
-done
-
-rm garbage_*
-
-popd
-disconn
-
-qemu-img convert -O qcow2 tmp.qcow2 shrunk.qcow2
-
 ```
 
 
