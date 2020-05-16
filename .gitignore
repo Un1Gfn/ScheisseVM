@@ -1,0 +1,6 @@
+/*.zip
+/*.iso
+/*.ISO
+
+/*.qcow2
+!*_base.qcow2
