@@ -5,6 +5,7 @@
 
 [Thin provisioning](https://en.wikipedia.org/wiki/Thin_provisioning)
 * qcow2
+  * https://askubuntu.com/questions/391101/does-trim-work-with-fat32
   * https://serverfault.com/a/446044
   * https://forum.proxmox.com/threads/question-about-qocw2-and-thin-provisioning.37605/
   * https://pve.proxmox.com/wiki/Shrink_Qcow2_Disk_Files
@@ -34,8 +35,8 @@ Connection/disconnect
 ```bash
 modprobe nbd
 lsmod | grep nbd
-alias disconn='sudo qemu-nbd -v -d /dev/nbd0'
-alias conn='sudo qemu-nbd -v -d /dev/nbd0; sudo qemu-nbd -v --discard=unmap -c /dev/nbd0 tmp.qcow2 &'
+alias disconn='echo -ne "\n  Umounted? "; read -r; echo; sudo qemu-nbd -v -d /dev/nbd0'
+alias conn='disconn; sudo qemu-nbd -v --discard=unmap --detect-zeroes=unmap -c /dev/nbd0 tmp.qcow2 &'
 ```
 
 EXT4 w/ deleted garbage
@@ -94,6 +95,28 @@ disconn
 FAT32 GC (by creating and deleting a large zero file?)
 
 ```bash
+
+conn
+mount -o discard /dev/nbd0p1 /mnt
+pushd /mnt
+
+i=0
+SZ="$((1024*1024*1024*4-1))"
+while true; do
+  F="zerofill_$i"
+  echo "$F"
+  # touch "$F"; fallocate -z -l $((1024*1024*1024*4-1)) -v "$F"
+  truncate -s "$SZ" "$F"
+  X="$?"
+  [ "$X" -eq 0 ] || break;
+  i=$((i+1))
+done
+
+rm garbage_*
+
+popd
+disconn
+
 qemu-img convert -O qcow2 tmp.qcow2 shrunk.qcow2
 
 ```
