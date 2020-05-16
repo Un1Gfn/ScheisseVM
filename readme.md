@@ -1,3 +1,8 @@
+[libgusetfs](http://libguestfs.org/)
+([Wikipedia](https://en.wikipedia.org/wiki/Libguestfs))
+([GitHub](https://github.com/libguestfs/libguestfs))
+([AUR](https://aur.archlinux.org/packages/libguestfs/))
+
 [Thin provisioning](https://en.wikipedia.org/wiki/Thin_provisioning)
 * qcow2
   * https://serverfault.com/a/446044
@@ -5,13 +10,10 @@
   * https://pve.proxmox.com/wiki/Shrink_Qcow2_Disk_Files
   * https://serverfault.com/a/951911 (reverse)
 
-GC w/ fstrim
+Create qcow2 image
+
 ```bash
-
-# qemu-img(1): Supported image file formats:
-
 # create [--object OBJECTDEF] [-q] [-f FMT] [-b BACKING_FILE] [-F BACKING_FMT] [-u] [-o OPTIONS] FILENAME [SIZE]
-
 sh -c "
 echo
 rm -fv tmp.qcow2
@@ -25,17 +27,57 @@ echo
 ls -lh tmp.qcow2
 echo
 "
-
-# mount
-# loop
 ```
+
+Mount/unmount
+
+```bash
+modprobe nbd
+lsmod | grep nbd
+alias disconn='sudo qemu-nbd -v -d /dev/nbd0'
+alias conn='sudo qemu-nbd -v -d /dev/nbd0; sudo qemu-nbd -v --discard=unmap -c /dev/nbd0 tmp.qcow2'
+```
+
+Ext4 partition w/ deleted garbage
+
+```bash
+conn
+
+echo -e "o\nn\n\n\n\n\nw\n\n\n\n" | fdisk /dev/nbd0
+sync;partprobe;sleep 3
+mkfs.ext4 /dev/nbd0p1
+sync;partprobe;sleep 3
+mount -v /dev/nbd0p1 /mnt
+dd if=/dev/urandom of=/mnt/garbage count=$((2*1024*1024)) status=progress
+sync
+rm -v /mnt/garbage
+umount /mnt
+
+disconn
+```
+
+GC w/ fstrim and noop conversion
+
+```bash
+conn
+
+mount /dev/nbd0p1 /mnt
+fstrim -av
+
+disconn
+
+qemu-img convert -O qcow2 tmp.qcow2 shrunk.qcow2
+ls -lh *.qcow2
+# -rw-r--r-- 1 root root  81M May 16 21:20 shrunk.qcow2
+# -rw-r--r-- 1 root root 2.2G May 16 21:20 tmp.qcow2
+```
+
 
 GC by creating and deleting a large zero file
 
 
 [FreeDOS](https://www.freedos.org/)
 * [download](https://www.freedos.org/download/)
-
 
 ```bash
 chmod -w *.iso
