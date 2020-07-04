@@ -1,3 +1,37 @@
+## Windows XP Mode + VirtualBox
+
+[Donwload](https://www.microsoft.com/en-us/download/details.aspx?id=8002)
+
+[Suppliment ISO w/ files for East Asian languages](https://isoriver.com/windows-xp-iso-download/)
+
+[Extract VHD](https://www.makeuseof.com/tag/download-windows-xp-for-free-and-legally-straight-from-microsoft-si/)
+
+```bash
+cabextract -l WindowsXPMode_en-us.exe
+cabextract -F sources/xpm WindowsXPMode_en-us.exe
+cabextract -l sources/xpm
+cabextract -F VirtualXPVHD sources/xpm
+cabextract -F KEY sources/xpm
+```
+
+Copy
+
+```bash
+rm -fv VirtualXPVHD_2
+chmod -v 444 VirtualXPVHD
+cp -v VirtualXPVHD{,_2}
+chmod -v 644 VirtualXPVHD_2
+```
+
+Load modules
+
+```bash
+lsmod | grep vbox
+vboxreload
+```
+
+## Misc
+
 [libgusetfs](http://libguestfs.org/)
 ([Wikipedia](https://en.wikipedia.org/wiki/Libguestfs))
 ([GitHub](https://github.com/libguestfs/libguestfs))
@@ -172,5 +206,16 @@ Convert between raw, qcow2, qed, vdi, vmdk, vhd
   * [openstack](https://docs.openstack.org/image-guide/convert-images.html)
   * [superuser](https://superuser.com/questions/360517)
 
+freedos.md
+
+```bash
+qemu-system-x86_64 \
+  -enable-kvm \
+  -m 4096 \
+  -k en \
+  -drive file="$ISO",media=cdrom \
+  -display gtk \
+  -no-reboot
+```
 
 </details>
